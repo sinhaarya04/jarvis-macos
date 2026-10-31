@@ -45,7 +45,7 @@ final class LiveSpeechPreview {
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
-        request.contextualStrings = ["Jarvis", "Aryan here to start working", "Jordan Lee", "Instagram", "Claude", "Outlook", "Nifty", "Sensex", "Bitcoin"]
+        request.contextualStrings = ["Jarvis", "Aryan here to start working", "Instagram", "Claude", "Outlook", "Nifty", "Sensex", "Bitcoin"]
         self.request = request; slot.set(request)
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
