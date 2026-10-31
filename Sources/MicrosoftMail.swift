@@ -64,6 +64,7 @@ final class MicrosoftMail: ObservableObject {
                 case "authorization_pending": continue
                 case "slow_down": interval += 5
                 case "authorization_declined", "access_denied": throw JarvisError.message("Microsoft sign-in was declined.")
+                case "expired_token": throw JarvisError.message("Sign-in expired. Start again when ready.")
                 default: throw JarvisError.message("Microsoft sign-in could not complete. Your tenant may require administrator consent.")
                 }
             }
@@ -92,7 +93,7 @@ final class MicrosoftMail: ObservableObject {
         credential = nil; accessToken = ""; connected = false; status = "Disconnected"
     }
 
-    func unread() async throws -> [MailPreview] {
+    func unread(retrying: Bool = true) async throws -> [MailPreview] {
         guard let credential else { throw JarvisError.message("Connect Microsoft 365 in Connections to include unread emails.") }
         if Date() >= expires {
             let result = try await post("token", fields: ["client_id": credential.clientID, "grant_type": "refresh_token", "refresh_token": credential.refreshToken, "scope": scopes])
@@ -106,6 +107,8 @@ final class MicrosoftMail: ObservableObject {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 20
         let (data, response) = try await URLSession.shared.data(for: request)
+        // A revoked token is rejected before its local expiry; refresh once instead of failing for up to an hour.
+        if (response as? HTTPURLResponse)?.statusCode == 401, retrying { expires = .distantPast; return try await unread(retrying: false) }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw JarvisError.message("Microsoft could not read your inbox. Check your account's Mail.Read consent.") }
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any], let messages = object["value"] as? [[String: Any]] else { throw JarvisError.message("Microsoft returned an unreadable inbox response.") }
         return messages.map { message in
