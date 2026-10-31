@@ -59,6 +59,10 @@ import Foundation
         """
         let items = MarketRSSParser(publisher: "Test", allowedHost: "example.test", now: now).parse(Data(rss.utf8))
         check(items.count == 1 && items[0].title == "Nifty & Sensex move", "RSS CDATA, dates, and publisher boundary")
+        let zoned = "<rss><channel><item><title>Zoned</title><link>https://example.test/a</link><pubDate>\n Tue, 22 Sep 2026 07:00:00 EDT \n</pubDate></item><item><title>No seconds</title><link>https://example.test/b</link><pubDate>Tue, 22 Sep 2026 11:00 +0000</pubDate></item></channel></rss>"
+        check(MarketRSSParser(publisher: "Test", allowedHost: "example.test", now: now).parse(Data(zoned.utf8)).count == 2, "RSS named zones, missing seconds and padded dates")
+        let footnoted = "<h4>2026</h4><tbody><tr><td>September 17*</td><td>25</td><td>0</td><td>3.75-4.00</td></tr><tr><td>July 30</td><td>0</td><td>0</td><td>4.00-4.25</td></tr></tbody>"
+        check(MarketParsing.fedRate(footnoted, now: now)?.contains("3.75 to 4.00") == true, "Fed footnote marker keeps the newest row")
         let html = "<h4>2026</h4><tbody><tr><td>September 17</td><td>25</td><td>0</td><td>3.75-4.00</td></tr></tbody>"
         check(MarketParsing.fedRate(html, now: now)?.contains("3.75 to 4.00") == true, "official Fed table")
         check(MarketParsing.rbiRate("<td>Policy Repo Rate</td><td>: 5.25%</td>")?.contains("5.25") == true, "official RBI label")
