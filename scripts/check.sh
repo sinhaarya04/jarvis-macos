@@ -8,7 +8,7 @@ swiftc -swift-version 5 -parse-as-library Sources/Core.swift Sources/InstagramCo
 .build/service-tests
 node --check Resources/instagram-controls.js
 node Tests/InstagramControls.test.cjs
-swiftc -swift-version 5 -typecheck Sources/*.swift
+swiftc -target "$(uname -m)-apple-macos14.0" -swift-version 5 -parse-as-library -typecheck Sources/*.swift
 plutil -lint Resources/Info.plist
 for script in scripts/*.sh; do bash -n "$script"; done
 git diff --check
