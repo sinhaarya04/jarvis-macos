@@ -63,9 +63,10 @@ final class LiveSpeechPreview {
                     self.generation = UUID(); self.slot.set(nil); self.request?.endAudio(); self.task?.cancel()
                     self.task = nil; self.request = nil
                     if error != nil { self.failures += 1 }
-                    guard self.failures < 3 else { return }
+                    // Quiet rooms end recognition with "no speech" errors; back off instead of giving up for good.
+                    let delay: UInt64 = self.failures < 3 ? 750_000_000 : 10_000_000_000
                     self.restart = Task { [weak self] in
-                        try? await Task.sleep(nanoseconds: 750_000_000)
+                        try? await Task.sleep(nanoseconds: delay)
                         guard !Task.isCancelled else { return }; self?.begin()
                     }
                 }
