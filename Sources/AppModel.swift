@@ -81,7 +81,11 @@ final class AppModel: ObservableObject {
             }
         }
         audio.onClap = { [weak self] in
-            guard let self, self.clapsArmed, !self.busy, !self.voice.isSpeaking, self.sessionReady else { return }
+            guard let self else { return }
+            guard self.clapsArmed, !self.busy, !self.voice.isSpeaking, self.sessionReady else {
+                // The monitor stops reacting after one detected clap; restart it so later claps still count.
+                self.pauseMonitoring(); self.resumeClaps(); return
+            }
             AudioLog.logger.notice("Double clap accepted; starting Office mode")
             self.coolDownClaps()
             self.pauseMonitoring()
@@ -112,16 +116,23 @@ final class AppModel: ObservableObject {
                 Task { @MainActor in self?.sleeping = true; self?.stop(); self?.pauseMonitoring() }
             })
         }
-        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
-            workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    self?.sleeping = false
-                    if self?.clapsEnabled == true { self?.clapsArmed = true }
-                    self?.resumeClaps()
-                }
-            })
+        let woke: (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                self?.sleeping = false
+                if self?.clapsEnabled == true { self?.clapsArmed = true }
+                self?.resumeClaps()
+            }
         }
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main, using: woke))
+        }
+        // Locking the screen (Control-Command-Q) posts none of the workspace notifications above.
+        let distributed = DistributedNotificationCenter.default()
+        workspaceObservers.append(distributed.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.sleeping = true; self?.stop(); self?.pauseMonitoring() }
+        })
+        workspaceObservers.append(distributed.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main, using: woke))
         Task { await refreshModel() }
         if audio.hasPermission {
             handsFreeEnabled = UserDefaults.standard.bool(forKey: "handsFreeEnabled")
@@ -242,6 +253,8 @@ final class AppModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard !Task.isCancelled, let self, self.clapsEnabled else { return }
             self.clapsArmed = true
+            // A monitor restarted during the cooldown was built without clap detection.
+            if self.audio.isMonitoring { self.pauseMonitoring() }
             self.resumeClaps()
         }
     }
@@ -284,7 +297,8 @@ final class AppModel: ObservableObject {
 
     private func heardSpeech(_ file: URL, liveText: String? = nil) {
         guard handsFreeEnabled, !busy, !recording, !voice.isSpeaking, sessionReady else {
-            try? FileManager.default.removeItem(at: file); return
+            // The audio monitor already stopped to deliver this segment; restart it or listening stays dead.
+            try? FileManager.default.removeItem(at: file); listening = false; resumeClaps(); return
         }
         let followUp = directListening || (waitingForCommandUntil.map { $0 > Date() } ?? false)
         if let liveText, let words = WakePhrase.command(in: liveText, followUp: followUp),
