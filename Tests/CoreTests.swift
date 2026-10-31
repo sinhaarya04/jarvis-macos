@@ -64,6 +64,32 @@ import Foundation
             ("stop!", .stop), ("Office mode", .briefing), ("test greeting", .greet)
         ]
         for (text, expected) in commands { check(CommandParser.parse(text) == expected, "parse \(text)") }
+        // A unique Contacts prefix result must still reach the chooser, never the send path.
+        let samCommand = CommandParser.parse("send a message to Sam saying running late")
+        guard case .message(let requestedName, let body) = samCommand else { fatalError("message command was not parsed") }
+        let samantha = MessageRecipient(name: "Samantha Jones", handle: "+15550101010",
+            requiresConfirmation: !MessageRecipient.isExactName(requestedName, givenName: "Samantha", familyName: "Jones"))
+        check(body == "running late" && MessageRecipient.automaticRecipient(in: [samantha]) == nil,
+              "Sam does not automatically send to a lone Samantha Jones")
+        for exactName in ["Samantha", "Jones", "Samantha Jones", "  sAMANTHA  jONES  "] {
+            let recipient = MessageRecipient(name: "Samantha Jones", handle: "+15550101010",
+                requiresConfirmation: !MessageRecipient.isExactName(exactName, givenName: "Samantha", familyName: "Jones"))
+            check(MessageRecipient.automaticRecipient(in: [recipient])?.id == recipient.id, "exact contact name permits one address")
+        }
+        for partialName in ["Sam", "Jon", "Samantha J", "", "   "] {
+            check(!MessageRecipient.isExactName(partialName, givenName: "Samantha", familyName: "Jones"), "partial/empty names need selection")
+        }
+        check(!MessageRecipient.isExactName("Mary", givenName: "Mary Ann", familyName: "Jones"), "given-name word match needs selection")
+        check(!MessageRecipient.isExactName("Sam", givenName: "", familyName: "Samantha"), "family-name prefix needs selection")
+        check(!MessageRecipient.isExactName("Jose", givenName: "José", familyName: "Jones"), "diacritics are not guessed")
+        check(MessageRecipient.isExactName("Samantha", givenName: "Samantha", familyName: ""), "single-name contact can match exactly")
+        let phone = MessageRecipient(name: "+15550101010", handle: "+15550101010", requiresConfirmation: false)
+        let email = MessageRecipient(name: "sam@example.test", handle: "sam@example.test", requiresConfirmation: false)
+        check(MessageRecipient.automaticRecipient(in: [phone])?.id == phone.id, "explicit phone keeps direct send")
+        check(MessageRecipient.automaticRecipient(in: [email])?.id == email.id, "explicit email keeps direct send")
+        check(MessageRecipient.automaticRecipient(in: [phone, email]) == nil, "multiple exact addresses still need selection")
+        check(MessageRecipient.automaticRecipient(in: [phone, samantha]) == nil, "exact result does not bypass multiple candidates")
+        check(MessageRecipient.automaticRecipient(in: []) == nil, "no recipient cannot send")
         check(!CommandParser.parse("message her saying Hello").canUseLiveTranscript, "Instagram sends never execute from partial speech")
         check(!CommandParser.parse("send it").canUseLiveTranscript, "send draft waits for finished speech")
         check(CommandParser.parse("Hey Jarvis, Aryan here to start working").canUseLiveTranscript, "office phrase can run directly from live speech")

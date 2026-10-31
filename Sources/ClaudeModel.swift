@@ -18,16 +18,37 @@ enum ClaudeCredentials {
         }
         return key
     }
+    /// Parses literal assignments only; never evaluates a shell file or expands its values.
+    static func key(inEnvironment text: String) throws -> String {
+        let values = text.split(whereSeparator: \.isNewline).compactMap { line -> String? in
+            let assignment = line.trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: "^export[\\t ]+", with: "", options: .regularExpression)
+            let parts = assignment.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "ANTHROPIC_API_KEY" else { return nil }
+            return parts[1].trimmingCharacters(in: .whitespaces)
+        }
+        guard values.count == 1, var key = values.first else {
+            throw JarvisError.message("The selected file must contain exactly one ANTHROPIC_API_KEY assignment.")
+        }
+        let invalid = JarvisError.message("The selected file does not contain a valid literal Anthropic key.")
+        if let quote = key.first, quote == "\"" || quote == "'" {
+            let content = key.dropFirst()
+            guard let end = content.firstIndex(of: quote) else { throw invalid }
+            let suffix = content[content.index(after: end)...].trimmingCharacters(in: .whitespaces)
+            guard suffix.isEmpty || suffix.hasPrefix("#") else { throw invalid }
+            key = String(content[..<end])
+        } else if let comment = key.range(of: "[\\t ]+#", options: .regularExpression) {
+            key = String(key[..<comment.lowerBound])
+        }
+        guard key.hasPrefix("sk-ant-"), key.count > 30,
+              key.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+              !key.contains("\""), !key.contains("'") else { throw invalid }
+        return key
+    }
+
     /// Explicit installation step only. Never source a shell file or log its contents.
     static func importEnvironmentFile(_ path: String) throws {
-        let text = try String(contentsOfFile: path, encoding: .utf8)
-        let values = text.split(whereSeparator: \.isNewline).compactMap { line -> String? in
-            let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "ANTHROPIC_API_KEY" else { return nil }
-            return parts[1].trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-        }
-        guard values.count == 1, let key = values.first, key.hasPrefix("sk-ant-"), key.count > 30,
-              !key.contains("\n"), !key.contains(" ") else { throw JarvisError.message("The selected file does not contain a valid Anthropic key.") }
+        let key = try key(inEnvironment: String(contentsOfFile: path, encoding: .utf8))
         let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8)]
         let result = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if result == errSecItemNotFound {

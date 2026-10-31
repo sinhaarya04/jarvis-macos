@@ -84,3 +84,10 @@ Laya-CoreML and the Browser Use package are not bundled. The native browser adap
 - The actual MarketService fetched all quote/rate families plus five dated headlines from the past twelve hours in 1.56 seconds. Headline sources in that run included WSJ, CNBC and The Economic Times.
 - A live CUA inspection searched Instagram for the requested name, found several accounts, and opened @jordan.lee only after the user selected that handle. Its Message control opened a composer whose profile-header link identified the same recipient. No message was typed or sent in this live inspection; these were CUA observations of Instagram, not proof that the installed JARVIS executor completed the workflow.
 - At the user's clap-failure report, no JARVIS process was running. After reopening, state-only logs confirmed both clap and hands-free monitoring. The rebuilt copy then reported microphone permission unavailable; macOS permission handoff and final installed-app integration results are recorded below when available.
+
+## Issue #1 and #2 regression checks (October 31, 2026)
+
+- `make check` passed: 135 core checks, 44 service checks, and 13 offline browser-control checks, plus whole-app Swift type checking, plist validation, shell syntax checks, and `git diff --check`.
+- The parsed request “send a message to Sam saying running late” cannot select a lone Samantha Jones for automatic sending. Exact given/family/full names, case and whitespace normalization, partial names, and multiple addresses are covered. The existing menu shows pending choices whenever the recipient list is nonempty, including a single uncertain result.
+- Key-import fixtures cover optional `export`, spaces/tabs, quoted and unquoted values, trailing comments, CRLF, duplicate assignments, malformed quotes, and unsupported variable/command values. Errors do not echo the synthetic key.
+- These checks use synthetic recipients and keys. They do not read Contacts, write Keychain, call paid APIs, or send real messages. Live message delivery and actual credential import were not exercised for these fixes.

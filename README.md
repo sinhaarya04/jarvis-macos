@@ -46,6 +46,8 @@ Ordinary conversation uses the model selected in Settings. Claude streams short 
 
 ## Connections
 
+**Claude API key:** `--import-claude-from /path/to/.env` imports one literal `ANTHROPIC_API_KEY` assignment into macOS Keychain. It accepts an optional `export` prefix, single- or double-quoted values, and trailing `#` comments (separated by whitespace for unquoted values). Duplicate assignments are rejected. The file is read as text, never sourced as a shell script; variables and commands are not expanded.
+
 **Microphone:** requested when you first record or enable claps.
 
 **Automation:** macOS asks when JARVIS first controls Chrome, Notes, or Messages. Grant the apps you want to use.
@@ -58,7 +60,7 @@ Ordinary conversation uses the model selected in Settings. Claude streams short 
 
 The briefing reads up to five unread **message previews** from the last seven days. It does not mark messages read or send email. Full-message selection is available through `summarize this email`; automatic full-thread retrieval is a future increment. If the mailbox is not connected, Office mode opens Outlook and records setup instructions without reading a long warning aloud.
 
-**Messages:** sign into iMessage in Apple's Messages app. Sending requires an explicit command with recipient and body. Multiple matching contacts/addresses are shown for selection. Submission is distinguished from verified delivery. No live messages are sent by the test suite. If a send times out, check Messages before retrying.
+**Messages:** sign into iMessage in Apple's Messages app. Sending requires an explicit command with recipient and body. A named recipient is sent automatically only when exactly one address matches and the requested name equals the contact's given, family, or full name (ignoring case and extra whitespace). Prefix/word matches require selection from the menu bar even when only one address is found; multiple matching contacts/addresses also require selection. Explicit phone numbers and email addresses remain supported. Submission is distinguished from verified delivery. No live messages are sent by the test suite. If a send times out, check Messages before retrying.
 
 ## Resource behavior
 
