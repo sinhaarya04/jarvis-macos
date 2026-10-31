@@ -7,8 +7,9 @@ on:
 
 jobs:
   check:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
       - name: Tests, type check and lint
         run: make check
