@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Match LSMinimumSystemVersion in Info.plist; swiftc otherwise targets the host macOS.
 mkdir -p .build dist/JARVIS.app/Contents/MacOS dist/JARVIS.app/Contents/Resources
 bash scripts/prepare-greeting.sh
-swiftc -swift-version 5 -O -parse-as-library Sources/*.swift -o dist/JARVIS.app/Contents/MacOS/JARVIS -framework AppKit -framework SwiftUI -framework AVFoundation -framework Speech -framework ApplicationServices -framework Carbon -framework Contacts -framework Security -framework ServiceManagement
+swiftc -target "$(uname -m)-apple-macos14.0" -swift-version 5 -O -parse-as-library Sources/*.swift -o dist/JARVIS.app/Contents/MacOS/JARVIS -framework AppKit -framework SwiftUI -framework AVFoundation -framework Speech -framework ApplicationServices -framework Carbon -framework Contacts -framework Security -framework ServiceManagement
 cp Resources/Info.plist dist/JARVIS.app/Contents/Info.plist
 cp .build/office-greeting.aiff dist/JARVIS.app/Contents/Resources/office-greeting.aiff
 cp Resources/instagram-controls.js dist/JARVIS.app/Contents/Resources/instagram-controls.js
