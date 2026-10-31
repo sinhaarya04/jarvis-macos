@@ -85,7 +85,9 @@ enum MarketParsing {
                 guard cells.count == 4, let values = captures("^([0-9]+(?:\\.[0-9]+)?)[–-]([0-9]+(?:\\.[0-9]+)?)$", cells[3]).first,
                       let low = Double(values[0]), let high = Double(values[1]), low >= 0, high >= low, high <= 25 else { continue }
                 let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "America/New_York"); f.dateFormat = "MMMM d yyyy"
-                guard let effective = f.date(from: cells[0] + " " + section[0]), effective <= now else { continue }
+                // Footnote markers ("March 16*") would otherwise skip the newest row and report an older rate.
+                let day = cells[0].replacingOccurrences(of: "[^A-Za-z0-9 ]", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+                guard let effective = f.date(from: day + " " + section[0]), effective <= now else { continue }
                 return "The Federal Reserve lists a target range of \(number(low, digits: 2)) to \(number(high, digits: 2)) percent, effective \(cells[0]), \(section[0])."
             }
         }
@@ -122,8 +124,12 @@ final class MarketRSSParser: NSObject, XMLParserDelegate {
         defer { item = nil; field = nil }
         let title = MarketParsing.clean(current["title"] ?? "")
         let link = (current["link"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
-        guard !title.isEmpty, let date = f.date(from: current["pubDate"] ?? ""), now.timeIntervalSince(date) >= -300,
+        let published = (current["pubDate"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX")
+        // RFC 822 allows named zones ("EDT") and omitted seconds; feeds use both.
+        let date = ["EEE, dd MMM yyyy HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd MMM yyyy HH:mm Z", "EEE, dd MMM yyyy HH:mm zzz"]
+            .lazy.compactMap { format -> Date? in f.dateFormat = format; return f.date(from: published) }.first
+        guard !title.isEmpty, let date, now.timeIntervalSince(date) >= -300,
               now.timeIntervalSince(date) <= 4 * 86400, let url = URL(string: link), url.scheme == "https",
               let host = url.host, host == allowedHost || host.hasSuffix("." + allowedHost) else { return }
         articles.append(MarketHeadline(title: title, url: link, published: date, publisher: publisher))

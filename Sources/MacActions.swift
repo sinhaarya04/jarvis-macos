@@ -26,7 +26,7 @@ final class MacActions {
             return "Opened \(name) in Chrome."
         }
         let aliases = OpenTargetPolicy.applications
-        if query == "outlook", NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.Outlook") == nil { return try await open("outlook web") }
+        if aliases[query] == "com.microsoft.Outlook", NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.Outlook") == nil { return try await open("outlook web") }
         var url = aliases[query].flatMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
         if url == nil {
             let roots = ["/Applications", "/System/Applications", NSHomeDirectory() + "/Applications"]
