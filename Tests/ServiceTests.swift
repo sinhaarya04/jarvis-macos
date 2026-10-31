@@ -4,6 +4,44 @@ import Foundation
     static func main() throws {
         var count = 0
         func check(_ value: Bool, _ label: String) { precondition(value, label); count += 1 }
+        // Synthetic values only: parser coverage never reads files or changes Keychain.
+        let syntheticKey = "sk-ant-" + String(repeating: "x", count: 40)
+        for assignment in [
+            "ANTHROPIC_API_KEY=\(syntheticKey)",
+            "export ANTHROPIC_API_KEY=\(syntheticKey)",
+            "  export\tANTHROPIC_API_KEY = \(syntheticKey)  ",
+            "ANTHROPIC_API_KEY=\(syntheticKey) # work account",
+            "export ANTHROPIC_API_KEY=\(syntheticKey)\t# work account",
+            "ANTHROPIC_API_KEY='\(syntheticKey)'",
+            "ANTHROPIC_API_KEY=\"\(syntheticKey)\"",
+            "export ANTHROPIC_API_KEY='\(syntheticKey)' # note",
+            "export ANTHROPIC_API_KEY=\"\(syntheticKey)\" # note",
+            "# ANTHROPIC_API_KEY=ignored\r\nOTHER=value\r\nexport ANTHROPIC_API_KEY=\(syntheticKey) # note\r\n"
+        ] {
+            check(try ClaudeCredentials.key(inEnvironment: assignment) == syntheticKey, "literal environment key import")
+        }
+        for invalid in [
+            "# ANTHROPIC_API_KEY=\(syntheticKey)",
+            "exportANTHROPIC_API_KEY=\(syntheticKey)",
+            "OTHER_ANTHROPIC_API_KEY=\(syntheticKey)",
+            "ANTHROPIC_API_KEY=\(syntheticKey)\nexport ANTHROPIC_API_KEY=\(syntheticKey)",
+            "ANTHROPIC_API_KEY=\nexport ANTHROPIC_API_KEY=\(syntheticKey)",
+            "ANTHROPIC_API_KEY=",
+            "ANTHROPIC_API_KEY=sk-ant-short",
+            "ANTHROPIC_API_KEY='\(syntheticKey)",
+            "ANTHROPIC_API_KEY=\"\(syntheticKey)'",
+            "ANTHROPIC_API_KEY=\(syntheticKey)'",
+            "ANTHROPIC_API_KEY=\(syntheticKey) unexpected text",
+            "ANTHROPIC_API_KEY=\(syntheticKey)\tunexpected",
+            "ANTHROPIC_API_KEY='\(syntheticKey) # not a comment'",
+            "ANTHROPIC_API_KEY=\"\(syntheticKey)\" trailing text",
+            "ANTHROPIC_API_KEY=$OTHER_KEY",
+            "ANTHROPIC_API_KEY=$(printf ignored)",
+            "ANTHROPIC_API_KEY=`printf ignored`"
+        ] {
+            do { _ = try ClaudeCredentials.key(inEnvironment: invalid); fatalError("invalid environment key accepted") }
+            catch { check(!error.localizedDescription.contains(syntheticKey), "key parser errors never echo key material") }
+        }
         let now = ISO8601DateFormatter().date(from: "2026-09-22T12:00:00Z")!
         check(MarketParsing.inOvernightWindow(now.addingTimeInterval(-11 * 3600), now: now), "overnight headline included")
         check(!MarketParsing.inOvernightWindow(now.addingTimeInterval(-13 * 3600), now: now), "older headline excluded")

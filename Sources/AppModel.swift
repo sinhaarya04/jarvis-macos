@@ -414,11 +414,17 @@ final class AppModel: ObservableObject {
         case .message(let name, let body):
             let matches = try await actions.recipients(name)
             try Task.checkCancellation()
-            if matches.count == 1 {
-                do { try respond(await actions.send(to: matches[0], text: body)) }
+            if let recipient = MessageRecipient.automaticRecipient(in: matches) {
+                do { try respond(await actions.send(to: recipient, text: body)) }
                 catch { throw JarvisError.message("Send result could not be verified. Check Messages before retrying.\n" + error.localizedDescription) }
             }
-            else { recipients = matches; pendingMessage = body; announce("More than one contact address matches. Repeat the command with the full phone number or email, or choose the address from JARVIS’s menu bar. The message has not been sent.") }
+            else {
+                recipients = matches; pendingMessage = body
+                let reason = matches.count == 1
+                    ? "I found \(matches[0].name), but the name did not match exactly."
+                    : "More than one contact address matches."
+                announce(reason + " Repeat the command with the full phone number or email, or choose the address from JARVIS’s menu bar. The message has not been sent.")
+            }
         case .summarizeSelection: try await summarize(actions.selectedText(), source: "Selected text")
         case .summarize(let text): try await summarize(text, source: "Provided text")
         case .summarizePage:

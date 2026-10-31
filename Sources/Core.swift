@@ -1,5 +1,27 @@
 import Foundation
 
+struct MessageRecipient: Identifiable {
+    let id = UUID()
+    let name: String
+    let handle: String
+    let requiresConfirmation: Bool
+
+    static func isExactName(_ query: String, givenName: String, familyName: String) -> Bool {
+        func normalized(_ value: String) -> String {
+            value.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
+        }
+        let query = normalized(query)
+        guard !query.isEmpty else { return false }
+        return [givenName, familyName, "\(givenName) \(familyName)"].contains { normalized($0) == query }
+    }
+
+    /// A unique prefix/word match still needs an explicit choice before sending.
+    static func automaticRecipient(in matches: [MessageRecipient]) -> MessageRecipient? {
+        guard matches.count == 1, let recipient = matches.first, !recipient.requiresConfirmation else { return nil }
+        return recipient
+    }
+}
+
 enum MarketScope: String { case all, india, bitcoin, rates, news }
 
 enum Command: Equatable {

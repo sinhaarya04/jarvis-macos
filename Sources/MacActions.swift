@@ -3,7 +3,6 @@ import ApplicationServices
 import Contacts
 
 struct PageContent { let title: String; let url: String; let text: String }
-struct MessageRecipient: Identifiable { let id = UUID(); let name: String; let handle: String }
 
 @MainActor
 final class MacActions {
@@ -159,15 +158,16 @@ final class MacActions {
 
     func recipients(_ name: String) async throws -> [MessageRecipient] {
         if name.range(of: "^\\+?[0-9() .-]{7,}$", options: .regularExpression) != nil || name.range(of: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", options: .regularExpression) != nil {
-            return [MessageRecipient(name: name, handle: name)]
+            return [MessageRecipient(name: name, handle: name, requiresConfirmation: false)]
         }
         let store = CNContactStore()
         guard try await store.requestAccess(for: .contacts) else { throw JarvisError.message("Contacts access is needed to resolve that name. You can also specify a phone number or email.") }
         let contacts = try store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: name), keysToFetch: [CNContactGivenNameKey as CNKeyDescriptor, CNContactFamilyNameKey as CNKeyDescriptor, CNContactPhoneNumbersKey as CNKeyDescriptor, CNContactEmailAddressesKey as CNKeyDescriptor])
         let matches = contacts.flatMap { contact -> [MessageRecipient] in
             let full = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
+            let exact = MessageRecipient.isExactName(name, givenName: contact.givenName, familyName: contact.familyName)
             let handles = contact.phoneNumbers.map { $0.value.stringValue } + contact.emailAddresses.map { $0.value as String }
-            return Array(Set(handles)).sorted().map { MessageRecipient(name: full, handle: $0) }
+            return Array(Set(handles)).sorted().map { MessageRecipient(name: full, handle: $0, requiresConfirmation: !exact) }
         }
         guard !matches.isEmpty else { throw JarvisError.message("No contact address matched \(name).") }
         return matches
