@@ -19,25 +19,27 @@ extension MacActions {
         let raw = try await script("""
         tell application "Google Chrome"
             if count of windows is 0 then make new window
-            set chosenWindow to front window
-            set chosenTab to missing value
+            -- Keep IDs, not loop references: "w" means "item k of windows" and moves once the window order changes.
+            set windowID to id of front window
+            set tabID to missing value
             repeat with w in windows
                 repeat with t in tabs of w
                     if URL of t starts with "https://www.instagram.com/" or URL of t starts with "https://instagram.com/" then
-                        set chosenWindow to w
-                        set chosenTab to t
+                        set windowID to id of w
+                        set tabID to id of t
                         exit repeat
                     end if
                 end repeat
-                if chosenTab is not missing value then exit repeat
+                if tabID is not missing value then exit repeat
             end repeat
-            if chosenTab is missing value then set chosenTab to make new tab at end of tabs of chosenWindow with properties {URL:"https://www.instagram.com/"}
+            set chosenWindow to window id windowID
+            if tabID is missing value then set tabID to id of (make new tab at end of tabs of chosenWindow with properties {URL:"https://www.instagram.com/"})
             repeat with i from 1 to count of tabs of chosenWindow
-                if id of tab i of chosenWindow is id of chosenTab then set active tab index of chosenWindow to i
+                if id of tab i of chosenWindow is tabID then set active tab index of chosenWindow to i
             end repeat
             set index of chosenWindow to 1
             activate
-            return (id of chosenWindow as text) & linefeed & (id of chosenTab as text)
+            return (windowID as text) & linefeed & (tabID as text)
         end tell
         """)
         let parts = raw.components(separatedBy: "\n")
@@ -169,7 +171,9 @@ final class InstagramAssistant {
         cancel(); query = name
         let tab = try await actions.instagramTab(); self.tab = tab
         expires = Date().addingTimeInterval(300)
-        if let known = aliases[InstagramPolicy.nameKey(name)] ?? (name.hasPrefix("@") ? InstagramPolicy.handle(name) : nil) {
+        // An explicit @handle wins over a remembered name: "@jordanlee" and "Jordan Lee" share a name key.
+        let explicit = name.hasPrefix("@") ? InstagramPolicy.handle(name) : nil
+        if let known = explicit ?? aliases[InstagramPolicy.nameKey(name)] {
             return try await open(InstagramProfile(handle: known, label: name), tab: tab)
         }
         var page = try await observeUntil(tab) { $0.controls.contains { $0.kind == "search" || $0.kind == "searchField" } }
